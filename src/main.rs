@@ -28,20 +28,17 @@ pub struct Uniforms<'a> {
     projection_matrix: Mat4,
     viewport_matrix: Mat4,
     time: u32,
-    noise: &'a FastNoiseLite,  // Pasamos referencia
+    noise: &'a FastNoiseLite, 
 }
 
 
-// Reutilizamos la instancia de ruido para evitar recrearla en cada frame
 fn create_noise() -> FastNoiseLite {
     let mut noise = FastNoiseLite::with_seed(1337);
     noise.set_noise_type(Some(NoiseType::OpenSimplex2));
     noise
 }
 
-// Resto de funciones de matrices (sin cambios)
 fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
-    // Rotación y transformación (sin cambios)
     let (sin_x, cos_x) = rotation.x.sin_cos();
     let (sin_y, cos_y) = rotation.y.sin_cos();
     let (sin_z, cos_z) = rotation.z.sin_cos();
@@ -78,7 +75,6 @@ fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
     transform_matrix * rotation_matrix
 }
 
-// Funciones de vista y proyección (sin cambios)
 fn create_view_matrix(eye: Vec3, center: Vec3, up: Vec3) -> Mat4 {
     look_at(&eye, &center, &up)
 }
@@ -98,7 +94,6 @@ fn create_viewport_matrix(width: f32, height: f32) -> Mat4 {
     )
 }
 
-// Render con post-procesamiento incluido
 fn render(
     framebuffer: &mut Framebuffer,
     uniforms: &Uniforms,
@@ -135,7 +130,7 @@ fn render(
             let (color, emission) = match shader_index {
                 0 => {
                     let color = sun_shader(uniforms);
-                    (color, color.to_hex())  // Sol emisivo
+                    (color, color.to_hex())  
                 }
                 1 => (earth_shader(&fragment, uniforms), 0),
                 2 => (mars_shader(&fragment, uniforms), 0),
@@ -148,7 +143,6 @@ fn render(
     
             framebuffer.set_current_color(color.to_hex());
     
-            // Solo escribimos en el buffer de emisión si hay emisión
             if emission != 0 {
                 framebuffer.point_with_emission(x, y, fragment.depth, emission);
             } else {
@@ -166,7 +160,6 @@ fn post_process(framebuffer: &mut Framebuffer) {
     }
 }
 
-// Nueva función de mezcla usando interpolación
 fn blend_emission(color: u32, emission: u32) -> u32 {
     let r1 = (color >> 16) & 0xFF;
     let g1 = (color >> 8) & 0xFF;
@@ -176,7 +169,6 @@ fn blend_emission(color: u32, emission: u32) -> u32 {
     let g2 = (emission >> 8) & 0xFF;
     let b2 = emission & 0xFF;
 
-    // Interpolación suave entre los dos colores (lerp)
     let blend = |c1, c2| ((c1 as f32 * 0.8) + (c2 as f32 * 0.2)).min(255.0) as u32;
 
     let r = blend(r1, r2);
@@ -190,7 +182,7 @@ fn main() {
     let window_width = 800;
     let window_height = 800;
     let framebuffer_width = 800;
-    let framebuffer_height = 800;  // Ajustamos a 800x800 para evitar deformaciones
+    let framebuffer_height = 800;  
 
     let frame_delay = Duration::from_millis(16);
 
@@ -252,12 +244,11 @@ fn main() {
             projection_matrix,
             viewport_matrix,
             time,
-            noise: &noise,  // ¡Solución aquí! No intentamos clonar.
+            noise: &noise,  
         };
 
         render(&mut framebuffer, &uniforms, &vertex_arrays, shader_index);
 
-        // Aplicamos post-procesamiento después del renderizado
         post_process(&mut framebuffer);
 
         window
@@ -268,7 +259,6 @@ fn main() {
     }
 }
 
-// Manejo de entrada para controlar la cámara y cambiar shaders
 fn handle_input(window: &Window, camera: &mut Camera, shader_index: &mut usize) {
     if window.is_key_down(Key::Key1) { *shader_index = 0; }
     if window.is_key_down(Key::Key2) { *shader_index = 1; }
