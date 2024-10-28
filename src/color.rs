@@ -22,7 +22,6 @@ impl Color {
         ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
     }
 
-    // Linear interpolation between two colors
     pub fn lerp(&self, other: &Color, t: f32) -> Self {
         let t = t.clamp(0.0, 1.0);
         Color {
