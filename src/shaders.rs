@@ -53,11 +53,6 @@ pub fn vertex_shader(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
   }
 }
 
-/// Fragment shader principal que selecciona los shaders específicos según el planeta.
-pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-    // Aquí se seleccionan los shaders según el contexto del cuerpo celeste.
-    earth_shader(fragment, uniforms)  // Por ejemplo, llama al shader de la Tierra
-}
 
 pub fn sun_shader(uniforms: &Uniforms) -> Color {
   // Brillo oscilante (pulso del Sol)
@@ -163,42 +158,54 @@ pub fn earth_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 }
 
 
-
 pub fn mars_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-  // Colores característicos de Marte
-  let sand_color = Color::new(210, 77, 38);   // Arena rojiza
-  let rock_color = Color::new(139, 69, 19);   // Rocas oscuras
-  let crater_color = Color::new(105, 54, 36); // Interior del cráter oscuro
+  // Definimos colores característicos para la superficie de Marte
+  let sand_color = Color::new(210, 77, 38);    // Arena rojiza característica
+  let rock_color = Color::new(150, 75, 45);    // Color de roca marciana
+  let ridge_color = Color::new(130, 60, 35);   // Crestas y rocas más ásperas
+  let crack_color = Color::new(90, 40, 20);    // Grietas más profundas
 
-  // Tiempo para animaciones suaves
-  let t = uniforms.time as f32 * 0.01;
+  let t = uniforms.time as f32 * 0.01;  // Tiempo para animaciones leves
 
-  // **Ruido para la distribución de cráteres**
-  let noise_value = uniforms.noise.get_noise_2d(
-      fragment.vertex_position.x * 50.0 + t,  // Coordenadas ajustadas para ruido más grueso
-      fragment.vertex_position.y * 50.0 + t,
+  // **FBM para superficie rocosa**: Crea ondulaciones amplias
+  let base_rock = fbm_noise(
+      &uniforms.noise,
+      fragment.vertex_position.x * 10.0 + t,
+      fragment.vertex_position.y * 10.0 + t,
+      6,  // Mayor número de octavas para más detalle
   );
 
-  // **Ruido para la profundidad y textura fina de los cráteres**
-  let depth_noise = uniforms.noise.get_noise_2d(
-      fragment.vertex_position.x * 100.0,  // Mayor frecuencia para texturas finas
-      fragment.vertex_position.y * 100.0,
+  // **Ruido para detalles finos**: Simula textura de rocas pequeñas
+  let fine_noise = uniforms.noise.get_noise_2d(
+      fragment.vertex_position.x * 50.0,
+      fragment.vertex_position.y * 50.0,
   );
 
-  // **Lógica de colores basada en ruido**
-  let color = if noise_value > 0.7 {
-      // Cráter profundo con textura
-      crater_color * (1.0 - depth_noise).clamp(0.5, 1.0) * fragment.intensity
-  } else if noise_value > 0.4 {
-      // Rocas o superficie elevada
-      rock_color * fragment.intensity
+  // **Ruido para grietas y fracturas**: Baja frecuencia para grietas grandes
+  let crack_noise = uniforms.noise.get_noise_2d(
+      fragment.vertex_position.x * 15.0 + t * 0.5,
+      fragment.vertex_position.y * 15.0 + t * 0.5,
+  );
+
+  // **Interpolación entre los colores para suavizar las transiciones**
+  let surface_color = if base_rock > 0.6 {
+      // Superficie rocosa áspera y crestas
+      ridge_color.lerp(&rock_color, fine_noise) * fragment.intensity
+  } else if crack_noise > 0.5 {
+      // Grietas más profundas
+      crack_color * fragment.intensity
   } else {
-      // Arena rojiza en el resto de la superficie
-      sand_color * fragment.intensity
+      // Arena marciana más suave en áreas planas
+      sand_color.lerp(&rock_color, fine_noise) * fragment.intensity
   };
 
-  color
+  // **Aplicación de iluminación para dar sensación tridimensional**
+  let light_factor = 0.5 + 0.5 * fragment.vertex_position.z.clamp(-1.0, 1.0);
+  let final_color = surface_color * light_factor;
+
+  final_color
 }
+
 
 // Función auxiliar para generar ruido Fractal Brownian Motion (FBM)
 // Función auxiliar para generar ruido Fractal Brownian Motion (FBM)
@@ -314,69 +321,135 @@ pub fn moon_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 }
 
 
+
 pub fn saturn_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-  let band_color1 = Color::new(210, 180, 140);  
-  let band_color2 = Color::new(160, 130, 110);  
-  let ring_color1 = Color::new(192, 192, 192);  
-  let ring_color2 = Color::new(169, 169, 169);  
+  // Colores de las bandas del planeta
+  let band_color1 = Color::new(210, 180, 140);  // Beige claro
+  let band_color2 = Color::new(170, 140, 110);  // Marrón medio
+  let band_color3 = Color::new(240, 230, 140);  // Amarillo claro
+  let band_color4 = Color::new(200, 160, 100);  // Marrón dorado
 
-  let y_position = fragment.vertex_position.y * 10.0 + uniforms.time as f32 * 0.01;
-  let noise_value = uniforms.noise.get_noise_2d(y_position, fragment.vertex_position.x * 10.0);
+  // Colores para los anillos
+  let ring_color1 = Color::new(192, 192, 192);  // Gris claro
+  let ring_color2 = Color::new(169, 169, 169);  // Gris oscuro
+  let ring_color3 = Color::new(220, 220, 220);  // Plateado
 
-  let band_color = if noise_value > 0.5 { band_color1 } else { band_color2 };
+  // **Radio en el plano XZ** para calcular los anillos
+  let radius = (fragment.vertex_position.x.powi(2) + fragment.vertex_position.z.powi(2)).sqrt();
+  let angle = fragment.vertex_position.z.atan2(fragment.vertex_position.x);
 
-  let radius = (fragment.vertex_position.x.powi(2) + fragment.vertex_position.y.powi(2)).sqrt();
-  let angle = fragment.vertex_position.y.atan2(fragment.vertex_position.x);
-
-  let ring_noise = uniforms.noise.get_noise_2d(radius * 10.0, angle * 10.0);
-  let ring_color = if ring_noise > 0.5 { ring_color1 } else { ring_color2 };
-
-  if radius > 1.0 && radius < 2.0 {
-      ring_color * fragment.intensity
-  } else {
-      band_color * fragment.intensity
-  }
-}
-
-
-
-
-pub fn comet_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-  // Colores del cometa: Cabeza brillante y cola azulada
-  let head_color = Color::new(255, 255, 255);  // Blanco brillante (núcleo)
-  let tail_color = Color::new(135, 206, 235);  // Azul claro (cola)
-
-  // Parámetro temporal para animación suave
-  let t = uniforms.time as f32 * 0.4;  
-
-  // Coordenadas polares para dar forma a la cola del cometa
-  let angle = (fragment.vertex_position.y).atan2(fragment.vertex_position.x);
-  let distance = (fragment.vertex_position.x.powi(2) + fragment.vertex_position.y.powi(2)).sqrt();
-
-  // Ruido para animar la forma dinámica de la cola
-  let tail_noise = uniforms.noise.get_noise_3d(
-      fragment.vertex_position.x * 10.0 + t,
-      fragment.vertex_position.y * 10.0 + t,
-      fragment.vertex_position.z * 5.0,
+  // **Ruido para los anillos** con animación leve
+  let ring_noise = uniforms.noise.get_noise_2d(
+      radius * 20.0,  // Aumentamos la frecuencia para más detalle
+      angle * 15.0 + uniforms.time as f32 * 0.02,  // Animación lenta
   );
 
-  // Ruido adicional para dispersar las partículas de la cola
-  let particle_noise = uniforms.noise.get_noise_2d(
-      angle * 20.0,
-      distance * 5.0 + t,
-  );
-
-  // Intensidad de la cola que disminuye con la distancia del núcleo
-  let tail_intensity = (1.0 - distance / 5.0).clamp(0.0, 1.0) * tail_noise;
-
-  // Lógica de color: El núcleo es brillante, la cola se desvanece con la distancia
-  let color = if distance < 1.0 {
-      head_color * fragment.intensity  // Núcleo brillante
+  // Selección del color del anillo basado en el ruido
+  let ring_color = if ring_noise > 0.66 {
+      ring_color1
+  } else if ring_noise > 0.33 {
+      ring_color2
   } else {
-      let tail_alpha = (particle_noise * tail_intensity).clamp(0.0, 1.0);
-      tail_color * tail_alpha * fragment.intensity  // Cola dinámica y dispersa
+      ring_color3
   };
 
-  color
+  // **Generación de las bandas del planeta** usando la latitud
+  let pos = fragment.vertex_position.normalize();
+  let latitude = pos.y;
+
+  // **FBM** para crear más bandas y ondulaciones suaves
+  let band_noise = fbm_noise(
+      &uniforms.noise,
+      latitude * 30.0 + uniforms.time as f32 * 0.01,  // Aumentamos la frecuencia para más bandas
+      0.0,
+      6,  // Seis octavas para mayor variación
+  );
+
+  // Selección del color de la banda con más variedad
+  let band_color = if band_noise > 0.75 {
+      band_color1
+  } else if band_noise > 0.5 {
+      band_color2
+  } else if band_noise > 0.25 {
+      band_color3
+  } else {
+      band_color4
+  };
+
+  // **Lógica para alternar entre anillos y bandas**
+  let final_color = if radius > 1.0 && radius < 2.5 {
+      // **Color del anillo** entre radios 1.0 y 2.5
+      ring_color * fragment.intensity
+  } else {
+      // **Bandas del planeta** fuera del rango de los anillos
+      band_color * fragment.intensity
+  };
+
+  final_color
 }
 
+pub fn comet_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+  // **Colores del núcleo y la superficie**
+  let core_color = Color::new(255, 105, 180);    // Rosa intenso (núcleo pulsante)
+  let surface_color = Color::new(72, 61, 139);   // Púrpura oscuro para la superficie
+  let crack_color = Color::new(50, 205, 50);     // Verde brillante para grietas
+
+  // **Colores de la cola**
+  let tail_inner_color = Color::new(0, 255, 255);  // Cian brillante (interior)
+  let tail_outer_color = Color::new(255, 69, 0);   // Rojo fuego (exterior)
+
+  // **Animación temporal**
+  let t = uniforms.time as f32 * 0.05;
+
+  // **Pulsación del núcleo** usando sinusoide
+  let pulsate = (t.sin() * 0.5 + 0.5).clamp(0.3, 1.0);  // Rango de 0.3 a 1.0
+
+  // **Ruido para la superficie rugosa**
+  let surface_noise = fbm_noise(
+      &uniforms.noise,
+      fragment.vertex_position.x * 8.0,
+      fragment.vertex_position.y * 8.0,
+      4,  // Más octavas para mayor detalle
+  );
+
+  // **Grietas dinámicas**: Ruido de alta frecuencia
+  let crack_noise = uniforms.noise.get_noise_2d(
+      fragment.vertex_position.x * 50.0 + t,
+      fragment.vertex_position.y * 50.0 + t,
+  );
+
+  // **Coordenadas para calcular la cola**
+  let distance = (fragment.vertex_position.x.powi(2) + fragment.vertex_position.y.powi(2)).sqrt();
+
+  // **Ruido para la cola dinámica**
+  let tail_noise = uniforms.noise.get_noise_2d(
+      fragment.vertex_position.x * 15.0 + t,
+      fragment.vertex_position.y * 15.0 + t,
+  );
+
+  // **Color de la cola** según el ruido y la distancia
+  let tail_color = tail_inner_color.lerp(&tail_outer_color, tail_noise);
+
+  // **Intensidad de la cola** decrece con la distancia
+  let tail_intensity = (1.0 - distance / 5.0).clamp(0.0, 1.0) * tail_noise;
+
+  // **Efecto de superficie del núcleo** con grietas y pulsación
+  let surface_effect = if crack_noise > 0.6 {
+      crack_color.lerp(&surface_color, surface_noise) * (1.0 - crack_noise).clamp(0.5, 1.0)
+  } else {
+      core_color * pulsate * (0.7 + surface_noise * 0.3)  // Núcleo vibrante
+  };
+
+  // **Iluminación basada en la posición Z**
+  let light_factor = 0.5 + 0.5 * fragment.vertex_position.z.clamp(-1.0, 1.0);
+  let illuminated_surface = surface_effect * light_factor;
+
+  // **Lógica para determinar si es núcleo o cola**
+  let final_color = if distance < 1.0 {
+      illuminated_surface * fragment.intensity  // Núcleo pulsante y dinámico
+  } else {
+      tail_color * tail_intensity * fragment.intensity  // Cola fluida y brillante
+  };
+
+  final_color
+}
