@@ -52,7 +52,7 @@ impl Camera {
     let radius_vector = self.center - self.eye;
     let radius = radius_vector.magnitude();
 
-    let angle_x = direction.x * 0.05; // Adjust this factor to control rotation speed
+    let angle_x = direction.x * 0.05; 
     let angle_y = direction.y * 0.05;
 
     let rotated = rotate_vec3(&radius_vector, angle_x, &Vec3::new(0.0, 1.0, 0.0));
